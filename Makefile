@@ -45,6 +45,7 @@ format:
 test:
 	python -m pytest tests
 ## Download Data from storage system
+# not set up yet
 .PHONY: sync_data_down
 sync_data_down:
 	az storage blob download-batch -s container-name/data/ \
@@ -52,6 +53,7 @@ sync_data_down:
 	
 
 ## Upload Data to storage system
+# not set up yet
 .PHONY: sync_data_up
 sync_data_up:
 	az storage blob upload-batch -d container-name/data/ \
@@ -70,16 +72,36 @@ create_environment:
 	
 
 
-
-#################################################################################
-# PROJECT RULES                                                                 #
-#################################################################################
-
-
 ## Make dataset
 .PHONY: data
 data: requirements
-	$(PYTHON_INTERPRETER) e_commerce_analyzer/dataset.py
+	uv run python -m e_commerce_analyzer/dataset.py
+
+## Build silver/gold
+.PHONY: features
+features: requirements
+	uv run python -m e_commerce_analyzer.features
+
+## Train ML models
+.PHONY: train
+train: requirements
+	uv run python -m e_commerce_analyzer.modeling.train
+
+## Generate reporting figures
+.PHONY: plots
+plots: requirements
+	uv run python -m e_commerce_analyzer.plots
+
+## Run batch inference
+.PHONY: predict
+predict: requirements
+	uv run python -m e_commerce_analyzer.modeling.predict
+
+## Full local pipeline (learning mode)
+.PHONY: pipeline_local
+pipeline_local: data features train plots predict
+	@echo "Local pipeline finished."
+	@echo "Next: review PROJECT_GUIDE.md and fill TODO blocks in each phase."
 
 
 #################################################################################
