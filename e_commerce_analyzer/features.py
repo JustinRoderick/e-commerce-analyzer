@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from loguru import logger
+import numpy as np
 import pandas as pd
 import typer
 
@@ -27,77 +28,89 @@ def main(
     df_sellers = pd.read_parquet(bronze_dir / "sellers.parquet")
     df_category_translation = pd.read_parquet(bronze_dir / "category_translation.parquet")
     df_order_reviews = pd.read_parquet(bronze_dir / "order_reviews.parquet")
-    
-    df_orders["order_purchase_timestamp"] = pd.to_datetime(df_orders["order_purchase_timestamp"])
-    df_order_reviews["review_creation_date"] = pd.to_datetime(df_order_reviews["review_creation_date"])
-    df_order_reviews["review_answer_timestamp"] = pd.to_datetime(df_order_reviews["review_answer_timestamp"])
+
+    for col in [
+        "order_purchase_timestamp",
+        "order_approved_at",
+        "order_delivered_carrier_date",
+        "order_delivered_customer_date",
+        "order_estimated_delivery_date",
+    ]:
+        if col in df_orders.columns:
+            df_orders[col] = pd.to_datetime(df_orders[col], errors="coerce")
+
+    if "shipping_limit_date" in df_order_items.columns:
+        df_order_items["shipping_limit_date"] = pd.to_datetime(
+            df_order_items["shipping_limit_date"], errors="coerce"
+        )
+
+    for col in ["review_creation_date", "review_answer_timestamp"]:
+        if col in df_order_reviews.columns:
+            df_order_reviews[col] = pd.to_datetime(df_order_reviews[col], errors="coerce")
     
     df_orders = df_orders.astype({
-        "order_id": "int64",
-        "customer_id": "int64",
-        "seller_id": "int64",
-        "product_id": "int64",
-        "order_purchase_timestamp": "datetime64[ns]",
-        "order_approved_at": "datetime64[ns]",
-        "order_delivered_carrier_date": "datetime64[ns]",
-        "order_delivered_customer_date": "datetime64[ns]",
-        "order_estimated_delivery_date": "datetime64[ns]"
+        "order_id": "string",
+        "customer_id": "string",
+        "order_status": "string",
     })
     
     df_order_items = df_order_items.astype({
-        "order_item_id": "int64",
-        "order_id": "int64",
-        "product_id": "int64",
-        "seller_id": "int64",
+        "order_item_id": "string",
+        "order_id": "string",
+        "product_id": "string",
+        "seller_id": "string",
         "price": "float64",
-        "freight_value": "float64"
+        "freight_value": "float64",
     })
     
     df_order_payments = df_order_payments.astype({
-        "order_id": "int64",
-        "payment_sequential": "int64",
-        "payment_type": "object",
-        "payment_installments": "int64",
+        "order_id": "string",
+        "payment_sequential": "Int64",
+        "payment_type": "string",
+        "payment_installments": "Int64",
         "payment_value": "float64"
     })
     
     df_customers = df_customers.astype({
-        "customer_id": "int64",
-        "customer_unique_id": "int64",
-        "customer_zip_code_prefix": "int64",
-        "customer_city": "object",
-        "customer_state": "object"
+        "customer_id": "string",
+        "customer_unique_id": "string",
+        "customer_zip_code_prefix": "string",
+        "customer_city": "string",
+        "customer_state": "string"
     })
     
     df_products = df_products.astype({
-        "product_id": "int64",
-        "product_category_name": "object",
-        "product_name_length": "int64",
-        "product_description_length": "int64",  
+        "product_id": "string",
+        "product_category_name": "string",
+        "product_name_lenght": "Int64",
+        "product_description_lenght": "Int64",
+        "product_photos_qty": "Int64",
+        "product_weight_g": "Int64",
+        "product_length_cm": "float64",
+        "product_height_cm": "float64",
+        "product_width_cm": "float64",
     })
     
     df_sellers = df_sellers.astype({
-        "seller_id": "int64",
-        "seller_zip_code_prefix": "int64",
-        "seller_city": "object",
-        "seller_state": "object"
+        "seller_id": "string",
+        "seller_zip_code_prefix": "string",
+        "seller_city": "string",
+        "seller_state": "string"
     })
     
     df_category_translation = df_category_translation.astype({
-        "product_category_name": "object",
-        "product_category_name_english": "object"
+        "product_category_name": "string",
+        "product_category_name_english": "string"
     })
     
     df_order_reviews = df_order_reviews.astype({
-        "review_id": "int64",
-        "order_id": "int64",
-        "review_comment_title": "object",
-        "review_comment_message": "object",
-        "review_creation_date": "datetime64[ns]",
-        "review_answer_timestamp": "datetime64[ns]",
-        "review_score": "int64"
+        "review_id": "string",
+        "order_id": "string",
+        "review_comment_title": "string",
+        "review_comment_message": "string",
+        "review_score": "Int64"
     })
-    
+
     df_orders = df_orders.drop_duplicates()
     df_order_items = df_order_items.drop_duplicates()
     df_order_payments = df_order_payments.drop_duplicates()
@@ -107,23 +120,14 @@ def main(
     df_category_translation = df_category_translation.drop_duplicates()
     df_order_reviews = df_order_reviews.drop_duplicates()
     
-    df_orders = df_orders.dropna()
-    df_order_items = df_order_items.dropna()
-    df_order_payments = df_order_payments.dropna()
-    df_customers = df_customers.dropna()
-    df_products = df_products.dropna()
-    df_sellers = df_sellers.dropna()
-    df_category_translation = df_category_translation.dropna()
-    df_order_reviews = df_order_reviews.dropna()
-    
-    logger.info(f"Orders deduplicated: before={len(df_orders)}, after={len(df_orders)}")
-    logger.info(f"Order items deduplicated: before={len(df_order_items)}, after={len(df_order_items)}")
-    logger.info(f"Order payments deduplicated: before={len(df_order_payments)}, after={len(df_order_payments)}")
-    logger.info(f"Customers deduplicated: before={len(df_customers)}, after={len(df_customers)}")
-    logger.info(f"Products deduplicated: before={len(df_products)}, after={len(df_products)}")
-    logger.info(f"Sellers deduplicated: before={len(df_sellers)}, after={len(df_sellers)}")
-    logger.info(f"Category translation deduplicated: before={len(df_category_translation)}, after={len(df_category_translation)}")
-    logger.info(f"Order reviews deduplicated: before={len(df_order_reviews)}, after={len(df_order_reviews)}")
+    df_orders = df_orders.dropna(subset=["order_id", "customer_id"])
+    df_order_items = df_order_items.dropna(subset=["order_id", "order_item_id", "product_id", "seller_id"])
+    df_order_payments = df_order_payments.dropna(subset=["order_id"])
+    df_customers = df_customers.dropna(subset=["customer_id", "customer_unique_id"])
+    df_products = df_products.dropna(subset=["product_id"])
+    df_sellers = df_sellers.dropna(subset=["seller_id"])
+    df_category_translation = df_category_translation.dropna(subset=["product_category_name"])
+    df_order_reviews = df_order_reviews.dropna(subset=["review_id", "order_id"])
     
     df_orders.to_parquet(processed_dir / "silver_orders.parquet", index=False)
     df_order_items.to_parquet(processed_dir / "silver_order_items.parquet", index=False)
@@ -136,7 +140,6 @@ def main(
     
     logger.info(f"Silver tables written: {processed_dir}")
     
-
 
 if __name__ == "__main__":
     app()
