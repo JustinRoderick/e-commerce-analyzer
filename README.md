@@ -1,10 +1,27 @@
 # e-commerce-analyzer
 
-<a target="_blank" href="https://cookiecutter-data-science.drivendata.org/">
-    <img src="https://img.shields.io/badge/CCDS-Project%20template-328F97?logo=cookiecutter" />
-</a>
+End-to-end data science project on the Olist e-commerce dataset.
 
-Quick DS porject
+## Implementation guide
+
+Core scripts:
+
+- `e_commerce_analyzer/dataset.py`
+- `e_commerce_analyzer/features.py`
+- `e_commerce_analyzer/modeling/train.py`
+- `e_commerce_analyzer/modeling/predict.py`
+- `e_commerce_analyzer/plots.py`
+
+## Coming Later
+
+Extended components:
+
+- `airflow/` (batch orchestration)
+- `streaming/` (Kafka/Redpanda replay demo)
+- `databricks/` (PySpark enterprise slice)
+- `agents/` (LLM report generation)
+- `powerbi/` (dashboard spec and checklist)
+- `mcp/` (optional integration)
 
 ## Project Organization
 
@@ -26,7 +43,7 @@ Quick DS porject
 │                         the creator's initials, and a short `-` delimited description, e.g.
 │                         `1.0-jqp-initial-data-exploration`.
 │
-├── pyproject.toml     <- Project configuration file with package metadata for 
+├── pyproject.toml     <- Project configuration file with package metadata for
 │                         e_commerce_analyzer and configuration for tools like black
 │
 ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
@@ -49,13 +66,12 @@ Quick DS porject
     │
     ├── features.py             <- Code to create features for modeling
     │
-    ├── modeling                
-    │   ├── __init__.py 
-    │   ├── predict.py          <- Code to run model inference with trained models          
+    ├── modeling
+    │   ├── __init__.py
+    │   ├── predict.py          <- Code to run model inference with trained models
     │   └── train.py            <- Code to train models
     │
     └── plots.py                <- Code to create visualizations
 ```
 
---------
-
+---
