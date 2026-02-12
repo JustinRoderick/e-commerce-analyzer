@@ -321,7 +321,85 @@ def main(
     gold_path = processed_dir / "gold_order_level.parquet"
     gold.to_parquet(gold_path, index=False)
     logger.info(f"Wrote gold order-level table: {gold_path} (rows={len(gold):,})")
+    
+    
+    # this adds other business metrics
+    reference_date = gold["order_purchase_timestamp"].max() + pd.Timedelta(days=1)
 
+    rfm = (
+        gold.dropna(subset=["customer_unique_id", "order_purchase_timestamp"])
+        .groupby("customer_unique_id", dropna=False)
+        .agg(
+            last_purchase=("order_purchase_timestamp", "max"),
+            first_purchase=("order_purchase_timestamp", "min"),
+            frequency_orders=("order_id", "nunique"), 
+            monetary_value=("order_value", "sum"),
+            avg_order_value=("order_value", "mean"),
+            late_delivery_rate=("is_late_delivery", "mean"),
+        )
+        .reset_index()
+    )
+
+    rfm["recency_days"] = (reference_date - rfm["last_purchase"]).dt.days
+
+    rfm_path = processed_dir / "gold_customer_rfm.parquet"
+    rfm.to_parquet(rfm_path, index=False)
+    logger.info(f"Wrote customer RFM table: {rfm_path} (rows={len(rfm):,})")
+    
+    
+    
+    kpis_monthly = (
+        gold.dropna(subset=["order_month"])
+        .groupby("order_month", dropna=False)
+        .agg(
+            orders=("order_id", "nunique"),
+            revenue=("order_value", "sum"),
+            late_delivery_rate=("is_late_delivery", "mean"),
+            avg_shipping_duration_days=("shipping_duration_days", "mean"),
+        )
+        .reset_index()
+        .sort_values("order_month")
+    )
+
+    # average order value
+    kpis_monthly["aov"] = kpis_monthly["revenue"] / kpis_monthly["orders"]
+
+    kpis_path = processed_dir / "mart_kpis_monthly.parquet"
+    kpis_monthly.to_parquet(kpis_path, index=False)
+    logger.info(f"Wrote monthly KPI mart: {kpis_path} (rows={len(kpis_monthly):,})")
+
+
+    month_category = (
+        gold.dropna(subset=["order_month"])
+        .groupby(["order_month", "top_category_english"], dropna=False)
+        .agg(
+            revenue=("order_value", "sum"),
+            orders=("order_id", "nunique"),
+        )
+        .reset_index()
+    )
+
+    stats = (
+        month_category.groupby("top_category_english", dropna=False)["revenue"]
+        .agg(revenue_mean="mean", revenue_std="std")
+        .reset_index()
+    )
+
+    anomalies = month_category.merge(
+        stats,
+        on="top_category_english",
+        how="left",
+        validate="m:1",
+    )
+
+    anomalies["revenue_zscore"] = (anomalies["revenue"] - anomalies["revenue_mean"]) / anomalies["revenue_std"]
+    anomalies.loc[anomalies["revenue_std"].isna() | (anomalies["revenue_std"] == 0), "revenue_zscore"] = 0.0
+    anomalies["is_anomaly"] = anomalies["revenue_zscore"].abs() >= 2.5
+
+    anomalies_path = processed_dir / "mart_anomalies.parquet"
+    anomalies.to_parquet(anomalies_path, index=False)
+    logger.info(f"Wrote anomaly mart: {anomalies_path} (rows={len(anomalies):,})")
+    
     
 if __name__ == "__main__":
     app()
