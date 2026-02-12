@@ -140,6 +140,60 @@ def main(
     
     logger.info(f"Silver tables written: {processed_dir}")
     
+    # creates Gold data on orders
+    gold = df_orders[
+        [
+            "order_id",  
+            "customer_id",  
+            "order_status",  
+            "order_purchase_timestamp",  
+            "order_approved_at",  
+            "order_delivered_carrier_date",  
+            "order_delivered_customer_date",  
+            "order_estimated_delivery_date",  
+        ]
+    ].copy()
+    
+    # Left join customers onto orders
+    gold = gold.merge(
+        df_customers[
+            [
+                "customer_id",
+                "customer_unique_id",
+                "customer_city",
+                "customer_state",
+                "customer_zip_code_prefix",
+            ]
+        ],
+        on="customer_id",
+        how="left",
+        validate="m:1",
+    )
+    
+    # create order payment info
+    payments_agg = (
+        df_order_payments.groupby("order_id", dropna=False)
+        .agg(
+            total_payment_value=("payment_value", "sum"),
+            payment_installments_mean=("payment_installments", "mean"),
+            payment_installments_max=("payment_installments", "max"),
+            payment_sequential_max=("payment_sequential", "max"),
+        )
+        .reset_index()
+    )
 
+    gold = gold.merge(
+        payments_agg,
+        on="order_id",
+        how="left",
+        validate="1:1",
+    )
+    
+    
+    
+    print(gold.head())
+    print(gold.columns)
+
+    
 if __name__ == "__main__":
     app()
