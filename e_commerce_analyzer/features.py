@@ -211,9 +211,116 @@ def main(
         validate="1:1",
     )
     
+    # Add item seller geography info
+    items_with_seller = df_order_items.merge(
+        df_sellers[["seller_id", "seller_state"]],
+        on="seller_id",
+        how="left",
+        validate="m:1",
+    )
+
+    seller_state_agg = (
+        items_with_seller.groupby("order_id")["seller_state"]
+        .agg(
+            seller_state_nunique="nunique",
+            seller_state_mode=lambda s: s.mode().iloc[0] if not s.mode().empty else pd.NA,
+        )
+        .reset_index()
+    )
+
+    gold = gold.merge(
+        seller_state_agg,
+        on="order_id",
+        how="left",
+        validate="1:1",
+    )
+
+    # Add product info to items to get category revenue
+    items_with_category = df_order_items.merge(
+        df_products[["product_id", "product_category_name"]],
+        on="product_id",
+        how="left",
+        validate="m:1",
+    ).merge(
+        df_category_translation,
+        on="product_category_name",
+        how="left",
+        validate="m:1",
+    )
+    
+    order_category_revenue = (
+        items_with_category.groupby(["order_id", "product_category_name_english"])["price"]
+        .sum()
+        .reset_index(name="category_revenue")
+    )
+
+    # Only adds top category for that order to gold
+    idx = order_category_revenue.groupby("order_id")["category_revenue"].idxmax()
+    top_category = order_category_revenue.loc[idx, ["order_id", "product_category_name_english"]].rename(
+        columns={"product_category_name_english": "top_category_english"}
+    )
+
+    gold = gold.merge(
+        top_category,
+        on="order_id",
+        how="left",
+        validate="1:1",
+    )
+
+
+    # Add review info to gold
+    reviews_agg = (
+        df_order_reviews.groupby("order_id", dropna=False)
+        .agg(
+            review_score_mean=("review_score", "mean"),
+            review_score_max=("review_score", "max"),
+            review_score_min=("review_score", "min"),
+            review_count=("review_id", "count"),
+        )
+        .reset_index()
+    )
+
+    reviews_agg["has_review"] = reviews_agg["review_count"] > 0
+
+    gold = gold.merge(
+        reviews_agg.drop(columns=["review_count"]),
+        on="order_id",
+        how="left",
+        validate="1:1",
+    )
+
+    # add metrics for timing, and general cleaning
+    gold["shipping_duration_days"] = (
+        (gold["order_delivered_customer_date"] - gold["order_purchase_timestamp"]).dt.total_seconds() / 86_400.0
+    )
+    gold["approval_to_carrier_days"] = (
+        (gold["order_delivered_carrier_date"] - gold["order_approved_at"]).dt.total_seconds() / 86_400.0
+    )
+    gold["purchase_to_approval_days"] = (
+        (gold["order_approved_at"] - gold["order_purchase_timestamp"]).dt.total_seconds() / 86_400.0
+    )
+
+    gold["is_same_state"] = gold["seller_state_mode"] == gold["customer_state"]
+
+    gold["is_late_delivery"] = (
+        gold["order_delivered_customer_date"].notna()
+        & gold["order_estimated_delivery_date"].notna()
+        & (gold["order_delivered_customer_date"] > gold["order_estimated_delivery_date"])
+    )
+
+    gold["order_value"] = gold["total_payment_value"]
+
+    gold["freight_share_of_order"] = gold["total_freight_value"] / gold["order_value"]
+    gold["freight_share_of_order"] = gold["freight_share_of_order"].replace([np.inf, -np.inf], np.nan)
+
+    gold["order_month"] = gold["order_purchase_timestamp"].dt.to_period("M").dt.to_timestamp()
     
     print(gold.head())
     print(gold.columns)
+    
+    gold_path = processed_dir / "gold_order_level.parquet"
+    gold.to_parquet(gold_path, index=False)
+    logger.info(f"Wrote gold order-level table: {gold_path} (rows={len(gold):,})")
 
     
 if __name__ == "__main__":
