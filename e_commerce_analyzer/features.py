@@ -188,7 +188,28 @@ def main(
         how="left",
         validate="1:1",
     )
+
+    items_agg = (
+        df_order_items.groupby("order_id")
+        .agg(
+            item_count=("order_item_id", "count"),
+            seller_count=("seller_id", "nunique"),
+            product_count=("product_id", "nunique"),
+            total_item_price=("price", "sum"),
+            total_freight_value=("freight_value", "sum"),
+            avg_item_price=("price", "mean"),
+            max_item_price=("price", "max"),
+            shipping_limit_date_max=("shipping_limit_date", "max"),
+        )
+        .reset_index()
+    )
     
+    gold = gold.merge(
+        items_agg,
+        on="order_id",
+        how="left",
+        validate="1:1",
+    )
     
     
     print(gold.head())
