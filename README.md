@@ -12,17 +12,6 @@ Core scripts:
 - `e_commerce_analyzer/modeling/predict.py`
 - `e_commerce_analyzer/plots.py`
 
-## Coming Later
-
-Extended components:
-
-- `airflow/` (batch orchestration)
-- `streaming/` (Kafka/Redpanda replay demo)
-- `databricks/` (PySpark enterprise slice)
-- `agents/` (LLM report generation)
-- `powerbi/` (dashboard spec and checklist)
-- `mcp/` (optional integration)
-
 ## Project Organization
 
 ```
